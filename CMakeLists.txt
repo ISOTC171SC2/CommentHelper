@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(CommentHelper VERSION 1.0.0.30 
+project(CommentHelper VERSION 1.0.0.1 
                 DESCRIPTION "Convert between the ISO Comment Template and GitHub issues"
                 LANGUAGES CXX)
 
