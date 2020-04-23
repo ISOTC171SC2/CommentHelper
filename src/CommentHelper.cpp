@@ -12,6 +12,9 @@
 #include "boost/program_options.hpp"
 #include "boost/format.hpp"
 #include "boost/filesystem.hpp"
+#include <boost/process.hpp>
+
+// LOTS of stuff for logging
 #include "boost/log/trivial.hpp"
 #include <boost/log/core.hpp>
 #include <boost/log/expressions.hpp>
@@ -118,6 +121,20 @@ static std::string _ReadFile(const std::string &fileName)
     return std::string(bytes.data(), fileSize);
 }
 
+std::string _GetIssues()
+{
+    boost::process::ipstream is; //reading pipe-stream
+    boost::process::child c(boost::process::search_path("hub"), boost::process::args({"issue", "-f", "%b%n-----%n"}), boost::process::std_out > is);
+
+    while (c.running()) ;
+    c.wait(); //wait for the process to exit   
+
+    std::string value;
+    is >> value;
+
+    return value;
+}
+
 
 int main(int argc, char** argv) {
     InitBoostLog();
@@ -133,6 +150,7 @@ int main(int argc, char** argv) {
         desc.add_options() 
             ("help,h", "Print help messages") 
             ("output,o", po::value<std::string>(), "output file or folder")
+            ("get,g", "Get the current open issues") 
             ("files", po::value<std::vector<std::string>>(&inputFiles), "input files")
             ;
 
@@ -166,7 +184,14 @@ int main(int argc, char** argv) {
         // application code here //
         BOOST_LOG_TRIVIAL(info) << "Welcome to " << GetAppInfo() << "!";
         
-        bool okToGo = false;
+        bool okToGo = true;
+
+        if ( vm.count("get") ) {
+            std::string issues( _GetIssues() );
+            if ( issues.length() ) {
+                    BOOST_LOG_TRIVIAL(info) << issues;
+            }
+        }
 
         if ( okToGo ) {
             if ( vm.count("output") ) {

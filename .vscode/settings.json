@@ -3,7 +3,11 @@
 		"*.cos": "pdf",
 		"*.mp": "python",
 		"*.joboptions": "postscript",
-		"*.in": "cpp"
+		"*.in": "cpp",
+		"__functional_03": "cpp",
+		"__functional_base": "cpp",
+		"__locale": "cpp",
+		"functional": "cpp"
 	},
 	"C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools"
 }

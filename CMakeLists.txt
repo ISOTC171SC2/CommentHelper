@@ -47,10 +47,11 @@ target_include_directories(CommentHelper
                             )
 
 # Add boost
+# NOTE: need at least 1.70 to fix a bug on the Mac with boost::process
 set(Boost_USE_STATIC_LIBS ON) 
 set(Boost_USE_MULTITHREADED ON)  
 set(Boost_USE_STATIC_RUNTIME OFF) 
-find_package(Boost 1.45.0 REQUIRED COMPONENTS program_options filesystem regex iostreams log) 
+find_package(Boost 1.70.0 REQUIRED COMPONENTS program_options filesystem regex iostreams log) 
 if(Boost_FOUND)
     target_include_directories(CommentHelper PRIVATE "${Boost_INCLUDE_DIRS}") 
     target_link_libraries(CommentHelper "${Boost_LIBRARIES}")
