@@ -1,0 +1,9 @@
+{
+	"files.associations": {
+		"*.cos": "pdf",
+		"*.mp": "python",
+		"*.joboptions": "postscript",
+		"*.in": "cpp"
+	},
+	"C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools"
+}

@@ -1,0 +1,8 @@
+#pragma once
+
+// the configured options and settings for claimGen
+#define CommentHelper_VERSION_MAJOR @CommentHelper_VERSION_MAJOR@
+#define CommentHelper_VERSION_MINOR @CommentHelper_VERSION_MINOR@
+#define CommentHelper_VERSION_PATCH @CommentHelper_VERSION_PATCH@
+#define CommentHelper_VERSION_TWEAK @CommentHelper_VERSION_TWEAK@
+#define CommentHelper_VERSION_GIT "@PACKAGE_GIT_VERSION@"
