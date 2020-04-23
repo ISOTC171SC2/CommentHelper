@@ -7,7 +7,8 @@
 		"__functional_03": "cpp",
 		"__functional_base": "cpp",
 		"__locale": "cpp",
-		"functional": "cpp"
+		"functional": "cpp",
+		"ostream": "cpp"
 	},
 	"C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools"
 }

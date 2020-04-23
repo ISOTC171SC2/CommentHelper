@@ -123,16 +123,19 @@ static std::string _ReadFile(const std::string &fileName)
 
 std::string _GetIssues()
 {
+    std::ostringstream outStr;
+    
     boost::process::ipstream is; //reading pipe-stream
     boost::process::child c(boost::process::search_path("hub"), boost::process::args({"issue", "-f", "%b%n-----%n"}), boost::process::std_out > is);
 
-    while (c.running()) ;
-    c.wait(); //wait for the process to exit   
+    std::string line;
+    while (c.running() && std::getline(is, line)) {
+        outStr << line << std::endl;
+    }
 
-    std::string value;
-    is >> value;
+    c.wait(); //wait for the process to exit
 
-    return value;
+    return outStr.str();
 }
 
 
