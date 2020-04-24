@@ -25,12 +25,14 @@ configure_file(CommentHelperVers.h.in "${PROJECT_SOURCE_DIR}/src/CommentHelperVe
 file(GLOB app_headers "${PROJECT_SOURCE_DIR}/src/*.h")
 file(GLOB app_source "${PROJECT_SOURCE_DIR}/src/*.cpp")
 
-# set some other variables we'll be using
-# set(jws_headers "${CMAKE_CURRENT_SOURCE_DIR}/jws-jwt-cpp/include")
+# add the ExcelFormat code
+set(xls_directory "${PROJECT_SOURCE_DIR}/ExcelFormat")
+file(GLOB xls_headers "${xls_directory}/*.h" "${xls_directory}/*.hpp")
+file(GLOB xls_source "${xls_directory}/*.cpp")
 
 # sets the name of the executable and its main
 # this *MUST* be early in the makefile
-add_executable(CommentHelper ${app_headers} ${app_source})
+add_executable(CommentHelper ${app_headers} ${app_source} ${xls_headers} ${xls_source})
 
 # specify the C++ standard
 # and define _DEBUG in debug mode...
@@ -43,7 +45,7 @@ target_include_directories(CommentHelper
                                 "${PROJECT_SOURCE_DIR}/src"
                                 "${PROJECT_BINARY_DIR}"
                             PRIVATE
-#                                "${jws_headers}"
+                               "${xls_directory}"
                             )
 
 # Add boost

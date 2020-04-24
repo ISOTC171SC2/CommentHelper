@@ -5,4 +5,4 @@
 #define CommentHelper_VERSION_MINOR 0
 #define CommentHelper_VERSION_PATCH 0
 #define CommentHelper_VERSION_TWEAK 1
-#define CommentHelper_VERSION_GIT "25c4708"
+#define CommentHelper_VERSION_GIT "86f4f73"
