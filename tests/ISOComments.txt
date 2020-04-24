@@ -1,0 +1,42 @@
+MB: US
+
+Clause: 4.1
+
+Paragraph: 3
+
+Type: Te
+
+Comments: The statement “…the PDF extension specification may, at the discretion of ISO/TC 171/SC 2/WG 8, then be merged into the next part of ISO 32000 …” leaves open the potential for arbitrary or capricious decision making.
+
+Proposed Change: Include a set of high-level criteria, issues, or questions that would structure the WG8 decision-making process regarding inclusion or exclusion of the proposed extension into ISO 3200.
+
+Resolution: Not Accepted  Like any other decision, the WG is free to use whatever criteria they wish.
+-*-*-*-
+MB: PL
+
+Clause: 4.2
+
+Paragraph: 2
+
+Type: Te
+
+Comments: Adjust the text to discuss the new model for ISO extensions in Extension Dicts
+
+Proposed Change: Shall use ‘ISO_’ extension in array form  Value of ExtensionLevel shall be ISO document number  Value of URL shall be the URL to the ISO page for the document 
+
+Resolution: Accepted
+-*-*-*-
+MB: AU
+
+Clause: 4.2
+
+Paragraph: -
+
+Type: GE
+
+Comments: Based on some early experiences in developing such PDF extensions, we need to be much more prescriptive about what is exactly required in extension documents to make merging by ISO 32000 PLs (and not the SME that wrote the extension!) entirely error free.
+
+Proposed Change: Add text:  State precisely headings, paragraph locations, Tables and Figures for addition of all new/added text.  The addition of new headings and tables should avoid significant renumbering of existing headings and tables within a major clause of ISO 32000. New Annexes are OK.   For modification to existing text then the entire paragraph(s) with sufficient context need to be shown in pseudo-markup (i.e. strikethrough for deleted text, coloured text for new text).  Examples fragments of PDF are also recommended.  All extension documents shall include a discussion on Document Requirements and Extensions Dictionaries.
+
+Resolution: Accepted in principle  PL agrees with the sentiment of the commenter and will wordsmith appropriate language.
+-*-*-*-

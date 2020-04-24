@@ -13,6 +13,7 @@
 #include "boost/format.hpp"
 #include "boost/filesystem.hpp"
 #include <boost/process.hpp>
+#include <boost/process/exception.hpp>
 
 // LOTS of stuff for logging
 #include "boost/log/trivial.hpp"
@@ -37,7 +38,6 @@ namespace  {
     const size_t ERROR_IN_COMMAND_LINE = 1;
     const size_t SUCCESS = 0;
     const size_t ERROR_UNHANDLED_EXCEPTION = 2;
-    const size_t ERROR_INITTING_XMP = 3;
  
 } // namespace 
 
@@ -121,23 +121,76 @@ static std::string _ReadFile(const std::string &fileName)
     return std::string(bytes.data(), fileSize);
 }
 
-std::string _GetIssues()
+static void _WriteToFile(const std::string& filePath, const std::string& inData)
+{
+    std::ofstream ofs(filePath.c_str(), std::ios::out);
+    ofs << inData;
+}
+
+std::string _GetIssues(const std::string& workingDir=".")
 {
     std::ostringstream outStr;
-    
-    boost::process::ipstream is; //reading pipe-stream
-    boost::process::child c(boost::process::search_path("hub"), boost::process::args({"issue", "-f", "%b%n-----%n"}), boost::process::std_out > is);
 
-    std::string line;
-    while (c.running() && std::getline(is, line)) {
-        outStr << line << std::endl;
+    auto binary_path = boost::process::search_path("hub");
+    if (binary_path.empty()) {
+        BOOST_LOG_TRIVIAL(error) << "Unable to locate `hub`" << std::endl;
+    } else {
+        try {
+            boost::process::ipstream is; //reading pipe-stream
+            boost::process::child c(binary_path,
+                                    boost::process::args({"issue", "-f", "%b%n-*-*-*-%n"}),
+                                    boost::process::start_dir(workingDir),
+                                    boost::process::std_out > is);
+
+            std::string line;
+            while (c.running() && std::getline(is, line)) {
+                outStr << line << std::endl;
+            }
+
+            c.wait(); //wait for the process to exit
+        }
+        catch( boost::process::process_error e) {
+            BOOST_LOG_TRIVIAL(error) << "Exception (" << e.code() << ") " << "running 'hub': " << e.what() << std::endl;
+        }
+        catch (std::exception& e)
+        {
+            BOOST_LOG_TRIVIAL(error) << "Exception running 'hub': " << e.what() << std::endl;
+        }
     }
-
-    c.wait(); //wait for the process to exit
-
+    
     return outStr.str();
 }
 
+std::string _ComputeOutputPath(const std::string& inFile = "", 
+                                const std::string& inOutPath="", 
+                                const std::string& inOutExt="" )
+{
+    std::string outPath;
+
+    // setup the output path
+    //  either in the same dir as the original or the output location
+    if ( inOutPath.length() ) {
+        boost::filesystem::path outP(inOutPath);
+        if ( boost::filesystem::is_directory(outP) ) {
+            boost::filesystem::path inP(inFile);
+            outP /= inP.filename();
+            outP.replace_extension(inOutExt);
+        } else {
+            outP = inOutPath;
+        }
+        outPath = outP.native();
+    } else {
+        boost::filesystem::path inP(inFile);
+        boost::filesystem::path tmpPath(inP.parent_path());
+        tmpPath /= inP.stem();
+        tmpPath += "-copy";
+        tmpPath.replace_extension(inOutExt);
+        outPath = tmpPath.native();
+    }
+    BOOST_LOG_TRIVIAL(debug) << "Final Output Path: " << outPath;
+
+    return outPath;
+}
 
 int main(int argc, char** argv) {
     InitBoostLog();
@@ -154,6 +207,8 @@ int main(int argc, char** argv) {
             ("help,h", "Print help messages") 
             ("output,o", po::value<std::string>(), "output file or folder")
             ("get,g", "Get the current open issues") 
+            ("repo,r", po::value<std::string>(), "folder for the git repo to operate on")
+            ("issues,i", po::value<std::string>(), "pre-downloaded/written comments")
             ("files", po::value<std::vector<std::string>>(&inputFiles), "input files")
             ;
 
@@ -187,51 +242,48 @@ int main(int argc, char** argv) {
         // application code here //
         BOOST_LOG_TRIVIAL(info) << "Welcome to " << GetAppInfo() << "!";
         
-        bool okToGo = true;
+        std::string repoDir(".");    // current directory
+        std::string issues;
+        std::string outPath;
 
-        if ( vm.count("get") ) {
-            std::string issues( _GetIssues() );
-            if ( issues.length() ) {
-                    BOOST_LOG_TRIVIAL(info) << issues;
-            }
+        if ( vm.count("repo") ) {
+            repoDir = vm["repo"].as<std::string>();
+            BOOST_LOG_TRIVIAL(debug) << "Repository: " << repoDir;
         }
 
-        if ( okToGo ) {
-            if ( vm.count("output") ) {
-                BOOST_LOG_TRIVIAL(info) << "Output Path: " << vm["output"].as<std::string>();
-            }
+        if ( vm.count("output") ) {
+            outPath = vm["output"].as<std::string>();
+            BOOST_LOG_TRIVIAL(debug) << "Output Path: " << outPath;
+        }
 
-            if ( vm.count("files") ) {
-                BOOST_LOG_TRIVIAL(info) << "Files: ";
-                for ( auto f : inputFiles ) {
-                    BOOST_LOG_TRIVIAL(info) << "\t" << f;
+        if ( vm.count("get") ) {
+            bool doXLS = vm.count("xls")>0;
+            if ( vm.count("issues")) {
+                std::string issuesPath(vm["issues"].as<std::string>());
+                issues = _ReadFile(issuesPath);
+                outPath = _ComputeOutputPath(issuesPath, outPath, doXLS ? "xls" : "txt" );
+            } else
+                issues = _GetIssues(repoDir);
 
-                    // setup the output path
-                    //  either in the same dir as the original or the output location
-                    boost::filesystem::path inP(f);
-                    std::string outPath;
-                    if ( vm.count("output") ) {
-                        boost::filesystem::path outP(vm["output"].as<std::string>());
-                        if ( boost::filesystem::is_directory(outP) ) {
-                            outP /= inP.filename();
-                        } else {
-                        }
-                        outPath = outP.native();
-                        
-                        BOOST_LOG_TRIVIAL(info) << "Final Output Path: " << outPath;
-                    } else {
-                        boost::filesystem::path tmpPath(inP.parent_path());
-                        tmpPath /= inP.stem();
-                        tmpPath += "-copy";
-                        tmpPath.replace_extension(inP.extension());
-                        outPath = tmpPath.native();
-                    }
+            if ( issues.length() ) {
+                // BOOST_LOG_TRIVIAL(debug) << issues;
+                if ( doXLS ) {
 
-                    // and process!!
+                } else if ( outPath.length() ) {
+                    _WriteToFile( outPath, issues );
+                } else {
+                    std::cout << issues;
                 }
             }
+        } else if ( vm.count("files") ) {
+            BOOST_LOG_TRIVIAL(info) << "Files: ";
+            for ( auto f : inputFiles ) {
+                BOOST_LOG_TRIVIAL(info) << "\t" << f;
+
+                // and process!!
+            }
         } else {
-            BOOST_LOG_TRIVIAL(fatal) << "Cannot proceed without a valid Private Key & Password" << std::endl;
+            BOOST_LOG_TRIVIAL(fatal) << "Unable to proceed with the specified options" << std::endl;
             return ERROR_IN_COMMAND_LINE;
         }
     } 
