@@ -26,13 +26,15 @@ file(GLOB app_headers "${PROJECT_SOURCE_DIR}/src/*.h")
 file(GLOB app_source "${PROJECT_SOURCE_DIR}/src/*.cpp")
 
 # add the ExcelFormat code
-set(xls_directory "${PROJECT_SOURCE_DIR}/ExcelFormat")
-file(GLOB xls_headers "${xls_directory}/*.h" "${xls_directory}/*.hpp")
-file(GLOB xls_source "${xls_directory}/*.cpp")
+# set(xls_directory "${PROJECT_SOURCE_DIR}/ExcelFormat")
+# file(GLOB xls_headers "${xls_directory}/*.h" "${xls_directory}/*.hpp")
+# file(GLOB xls_source "${xls_directory}/*.cpp")
 
 # sets the name of the executable and its main
 # this *MUST* be early in the makefile
-add_executable(CommentHelper ${app_headers} ${app_source} ${xls_headers} ${xls_source})
+add_executable(CommentHelper ${app_headers} ${app_source} 
+                # ${xls_headers} ${xls_source}
+                )
 
 # specify the C++ standard
 # and define _DEBUG in debug mode...

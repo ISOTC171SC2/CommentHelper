@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+// General boost
 #include "boost/program_options.hpp"
 #include "boost/format.hpp"
 #include "boost/filesystem.hpp"
@@ -31,15 +32,15 @@
 #include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/attributes/named_scope.hpp>
 
-
+// App Stuff
 #include "CommentHelperVers.h"
 
-namespace  { 
-    const size_t ERROR_IN_COMMAND_LINE = 1;
-    const size_t SUCCESS = 0;
-    const size_t ERROR_UNHANDLED_EXCEPTION = 2;
- 
-} // namespace 
+enum CGErrors  {
+    SUCCESS = 0,
+    ERROR_IN_COMMAND_LINE,
+    ERROR_INVALID_INPUT_FILE,
+    ERROR_UNHANDLED_EXCEPTION
+};
 
 static void InitBoostLog(void)
 {
@@ -113,12 +114,14 @@ static std::string _ReadFile(const std::string &fileName)
     std::ifstream ifs(fileName.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
     
     std::ifstream::pos_type fileSize = ifs.tellg();
-    ifs.seekg(0, std::ios::beg);
-    
-    std::vector<char> bytes(fileSize);
-    ifs.read(bytes.data(), fileSize);
-    
-    return std::string(bytes.data(), fileSize);
+    if ( fileSize > 0 ) {
+        ifs.seekg(0, std::ios::beg);
+        
+        std::vector<char> bytes(fileSize);
+        ifs.read(bytes.data(), fileSize);
+        return std::string(bytes.data(), fileSize);
+    } else
+        return "";
 }
 
 static void _WriteToFile(const std::string& filePath, const std::string& inData)
@@ -161,6 +164,63 @@ std::string _GetIssues(const std::string& workingDir=".")
     return outStr.str();
 }
 
+void _PutIssue(const std::string& inIssue, const std::string& workingDir=".")
+{
+    std::string issueStr;
+
+    auto binary_path = boost::process::search_path("hub");
+    if (binary_path.empty()) {
+        BOOST_LOG_TRIVIAL(error) << "Unable to locate `hub`" << std::endl;
+    } else {
+        try {
+            boost::process::opstream in;    //writing pipe-stream
+            boost::process::ipstream out;   //reading pipe-stream
+            boost::process::child c(binary_path, 
+                                    // from standard in
+                                    // boost::process::args({"issue", "create", "-F", "-"}), 
+                                    boost::process::args({"issue", "create", "-m", inIssue}), 
+                                    boost::process::start_dir(workingDir),
+                                    boost::process::std_out > out
+                                    // boost::process::std_in < in
+                                    );
+
+            // in << inIssue << std::endl;
+            out >> issueStr;
+
+            c.wait();
+        }
+        catch( boost::process::process_error e) {
+            BOOST_LOG_TRIVIAL(error) << "Exception (" << e.code() << ") " << "running 'hub': " << e.what() << std::endl;
+        }
+        catch (std::exception& e)
+        {
+            BOOST_LOG_TRIVIAL(error) << "Exception running 'hub': " << e.what() << std::endl;
+        }
+    }
+}
+
+void _ConvertDocx2Adoc(const std::string& inDocXFile, const std::string& inADocFile )
+{
+    auto binary_path = boost::process::search_path("pandoc");
+    if (binary_path.empty()) {
+        BOOST_LOG_TRIVIAL(error) << "Unable to locate `pandoc`" << std::endl;
+    } else {
+        try {
+            boost::process::child c(binary_path,
+                                    boost::process::args({ inDocXFile, "-t", "asciidoc", "-o", inADocFile }));
+            
+            c.wait(); //wait for the process to exit
+        }
+        catch( boost::process::process_error e) {
+            BOOST_LOG_TRIVIAL(error) << "Exception (" << e.code() << ") " << "running 'pandoc': " << e.what() << std::endl;
+        }
+        catch (std::exception& e)
+        {
+            BOOST_LOG_TRIVIAL(error) << "Exception running 'pandoc': " << e.what() << std::endl;
+        }
+    }
+}
+
 std::string _ComputeOutputPath(const std::string& inFile = "", 
                                 const std::string& inOutPath="", 
                                 const std::string& inOutExt="" )
@@ -192,7 +252,29 @@ std::string _ComputeOutputPath(const std::string& inFile = "",
     return outPath;
 }
 
-int main(int argc, char** argv) {
+static std::string expand_user(std::string path)
+{
+    if (not path.empty() and path[0] == '~') {
+        assert(path.size() == 1 or path[1] == '/');  // or other error handling
+        char const* home = getenv("HOME");
+        if (home or ((home = getenv("USERPROFILE")))) {
+            path.replace(0, 1, home);
+        }
+        else {
+            char const *hdrive = getenv("HOMEDRIVE"),
+            *hpath = getenv("HOMEPATH");
+            assert(hdrive);  // or other error handling
+            assert(hpath);
+            path.replace(0, 1, std::string(hdrive) + hpath);
+        }
+    }
+    return path;
+}
+
+int main(int argc, char** argv)
+{
+    size_t  result = SUCCESS;
+
     InitBoostLog();
     BOOST_LOG_NAMED_SCOPE("main");
     
@@ -209,6 +291,8 @@ int main(int argc, char** argv) {
             ("get,g", "Get the current open issues") 
             ("repo,r", po::value<std::string>(), "folder for the git repo to operate on")
             ("issues,i", po::value<std::string>(), "pre-downloaded/written comments")
+            ("create,c", po::value<std::string>(), "create a new issue")
+            ("adoc,a", "output the issues in ASCIIDoc format")
             ("files", po::value<std::vector<std::string>>(&inputFiles), "input files")
             ;
 
@@ -247,51 +331,67 @@ int main(int argc, char** argv) {
         std::string outPath;
 
         if ( vm.count("repo") ) {
-            repoDir = vm["repo"].as<std::string>();
+            repoDir = expand_user(vm["repo"].as<std::string>());
             BOOST_LOG_TRIVIAL(debug) << "Repository: " << repoDir;
         }
 
         if ( vm.count("output") ) {
-            outPath = vm["output"].as<std::string>();
+            outPath = expand_user(vm["output"].as<std::string>());
             BOOST_LOG_TRIVIAL(debug) << "Output Path: " << outPath;
         }
 
         if ( vm.count("get") ) {
-            bool doXLS = vm.count("xls")>0;
             if ( vm.count("issues")) {
-                std::string issuesPath(vm["issues"].as<std::string>());
+                std::string issuesPath(expand_user(vm["issues"].as<std::string>()));
+                BOOST_LOG_TRIVIAL(debug) << "Issues Path: " << issuesPath;
+
                 issues = _ReadFile(issuesPath);
-                outPath = _ComputeOutputPath(issuesPath, outPath, doXLS ? "xls" : "txt" );
+                outPath = _ComputeOutputPath(issuesPath, outPath, "txt" );
             } else
                 issues = _GetIssues(repoDir);
 
             if ( issues.length() ) {
                 // BOOST_LOG_TRIVIAL(debug) << issues;
-                if ( doXLS ) {
-
-                } else if ( outPath.length() ) {
+                if ( outPath.length() ) {
                     _WriteToFile( outPath, issues );
                 } else {
                     std::cout << issues;
                 }
+            } else {
+                BOOST_LOG_TRIVIAL(info) << "No issues were found!";
             }
+        } else if ( vm.count("create") ) {
+            _PutIssue( "This is a test issue\n\nIf you can read this, it worked!", repoDir );
         } else if ( vm.count("files") ) {
             BOOST_LOG_TRIVIAL(info) << "Files: ";
             for ( auto f : inputFiles ) {
                 BOOST_LOG_TRIVIAL(info) << "\t" << f;
 
                 // and process!!
+                boost::filesystem::path inP(expand_user(f));
+                if ( boost::filesystem::exists(inP) ) {
+                    // switch based on operation
+                    if ( vm.count("adoc") ) {
+                        _ConvertDocx2Adoc( f, _ComputeOutputPath( f, outPath, "adoc" ) );
+                    } else {
+                        BOOST_LOG_TRIVIAL(fatal) << "Unknown operation" << std::endl;
+                        result = ERROR_IN_COMMAND_LINE;
+                    }
+                } else {
+                    BOOST_LOG_TRIVIAL(error) << "Unable to locate '" << f << "'" << std::endl;
+                    result = ERROR_INVALID_INPUT_FILE;
+                }
             }
         } else {
             BOOST_LOG_TRIVIAL(fatal) << "Unable to proceed with the specified options" << std::endl;
-            return ERROR_IN_COMMAND_LINE;
+            result = ERROR_IN_COMMAND_LINE;
         }
     } 
     catch(std::exception& e)  { 
         BOOST_LOG_TRIVIAL(fatal) << "Unhandled Exception reached the top of main: " 
                     << e.what() << ", application will now exit" << std::endl; 
-        return ERROR_UNHANDLED_EXCEPTION; 
+        result = ERROR_UNHANDLED_EXCEPTION;
     }
     
-    return SUCCESS; 
+    return result;
 }
